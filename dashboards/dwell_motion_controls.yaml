@@ -1,0 +1,32 @@
+title: Motion Controls
+path: motion-controls
+icon: mdi:motion-sensor
+cards:
+  - type: entities
+    title: Motion Automation
+    show_header_toggle: true
+    state_color: true
+    entities:
+      - entity: switch.kitchen_motion_automation
+        name: Kitchen
+      - entity: switch.dining_motion_automation
+        name: Dining
+      - entity: switch.lounge_motion_automation
+        name: Lounge
+      - entity: switch.office_motion_automation
+        name: Office
+      - entity: switch.main_bedroom_motion_automation
+        name: Main Bedroom
+      - entity: switch.ensuite_motion_automation
+        name: Ensuite
+
+# Reusable row pattern for each room card in the main Dwell dashboard:
+#
+# - type: tile
+#   entity: switch.<room>_motion_automation
+#   name: Motion
+#   icon: mdi:motion-sensor
+#
+# This is intentionally a switch over Dwell's automation enable helper. It does
+# not represent the physical motion sensor's detected/not-detected state and it
+# does not turn the room lights on/off directly.
