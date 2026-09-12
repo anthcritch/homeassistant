@@ -1,0 +1,159 @@
+# Dwell Guest Mode manual-room guard
+#
+# Intent:
+# - While Guest mode is active, Office and all non-main bedrooms are manual.
+# - Main Bedroom remains automated.
+# - The guard disables only Dwell per-room automation enable helpers. It does not
+#   turn room lights on or off, so occupants retain manual control.
+# - When Guest mode ends, affected rooms return to normal automatic control.
+#
+# Assumptions already used by the Dwell lighting architecture:
+#   input_boolean.dwell_lighting_guest_mode
+#   input_boolean.dwell_lighting_<room>_enabled
+#   input_boolean.dwell_lighting_main_bedroom_enabled
+
+input_boolean:
+  dwell_guest_manual_rooms_guard:
+    name: Dwell Guest Manual Rooms Guard
+    icon: mdi:hand-back-right
+
+sensor:
+  - platform: template
+    sensors:
+      dwell_guest_manual_lighting_status:
+        friendly_name: Dwell Guest Manual Lighting Status
+        value_template: >-
+          {% if is_state('input_boolean.dwell_lighting_guest_mode', 'on') %}
+            Manual
+          {% else %}
+            Automatic
+          {% endif %}
+        attribute_templates:
+          controlled_helpers: >-
+            {% set ns = namespace(ids=[]) %}
+            {% for s in states.input_boolean %}
+              {% set eid = s.entity_id %}
+              {% if eid.startswith('input_boolean.dwell_lighting_')
+                    and eid.endswith('_enabled')
+                    and ('office' in eid or 'bedroom' in eid)
+                    and 'main_bedroom' not in eid %}
+                {% set ns.ids = ns.ids + [eid] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.ids }}
+          main_bedroom_exception: input_boolean.dwell_lighting_main_bedroom_enabled
+
+# Apply Guest-mode defaults when Guest mode changes or Home Assistant starts.
+automation:
+  - id: dwell_guest_mode_manual_rooms_sync
+    alias: Dwell - Guest Mode - Manual Office and Bedrooms
+    description: >-
+      Disables Dwell lighting automation for Office and all non-main bedrooms
+      while Guest mode is active, without changing the current light state.
+      Main Bedroom remains automated.
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_boolean.dwell_lighting_guest_mode
+      - platform: homeassistant
+        event: start
+    variables:
+      manual_helpers: >-
+        {% set ns = namespace(ids=[]) %}
+        {% for s in states.input_boolean %}
+          {% set eid = s.entity_id %}
+          {% if eid.startswith('input_boolean.dwell_lighting_')
+                and eid.endswith('_enabled')
+                and ('office' in eid or 'bedroom' in eid)
+                and 'main_bedroom' not in eid %}
+            {% set ns.ids = ns.ids + [eid] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.ids }}
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.dwell_lighting_guest_mode
+                state: 'on'
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.dwell_guest_manual_rooms_guard
+              - if:
+                  - condition: template
+                    value_template: "{{ manual_helpers | count > 0 }}"
+                then:
+                  - service: input_boolean.turn_off
+                    target:
+                      entity_id: "{{ manual_helpers }}"
+              - if:
+                  - condition: template
+                    value_template: >-
+                      {{ states('input_boolean.dwell_lighting_main_bedroom_enabled') not in ['unknown', 'unavailable'] }}
+                then:
+                  - service: input_boolean.turn_on
+                    target:
+                      entity_id: input_boolean.dwell_lighting_main_bedroom_enabled
+        default:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.dwell_guest_manual_rooms_guard
+          - if:
+              - condition: template
+                value_template: "{{ manual_helpers | count > 0 }}"
+            then:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: "{{ manual_helpers }}"
+
+  # Guard against another reconciliation/defaults automation re-enabling a
+  # manual room while Guest mode remains active.
+  - id: dwell_guest_mode_manual_rooms_guard
+    alias: Dwell - Guest Mode - Protect Manual Office and Bedrooms
+    description: >-
+      Reasserts the Guest-mode manual exclusion if another automation turns a
+      matching Dwell room-enable helper back on.
+    mode: restart
+    trigger:
+      - platform: template
+        value_template: >-
+          {% if not is_state('input_boolean.dwell_lighting_guest_mode', 'on') %}
+            false
+          {% else %}
+            {% set ns = namespace(found=false) %}
+            {% for s in states.input_boolean %}
+              {% set eid = s.entity_id %}
+              {% if eid.startswith('input_boolean.dwell_lighting_')
+                    and eid.endswith('_enabled')
+                    and ('office' in eid or 'bedroom' in eid)
+                    and 'main_bedroom' not in eid
+                    and s.state == 'on' %}
+                {% set ns.found = true %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.found }}
+          {% endif %}
+    variables:
+      manual_helpers: >-
+        {% set ns = namespace(ids=[]) %}
+        {% for s in states.input_boolean %}
+          {% set eid = s.entity_id %}
+          {% if eid.startswith('input_boolean.dwell_lighting_')
+                and eid.endswith('_enabled')
+                and ('office' in eid or 'bedroom' in eid)
+                and 'main_bedroom' not in eid %}
+            {% set ns.ids = ns.ids + [eid] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.ids }}
+    condition:
+      - condition: state
+        entity_id: input_boolean.dwell_lighting_guest_mode
+        state: 'on'
+      - condition: template
+        value_template: "{{ manual_helpers | count > 0 }}"
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: "{{ manual_helpers }}"
