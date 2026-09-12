@@ -1,0 +1,100 @@
+# Dwell room motion automation controls
+# User-facing switches wrap the existing per-room Dwell lighting enable helpers.
+# ON  = motion/presence automation may control that room.
+# OFF = room lighting is manual.
+#
+# These switches do not directly change light state.
+# Guest mode may turn the underlying room helper off for rooms that must remain manual.
+
+template:
+  - switch:
+      - name: Kitchen Motion Automation
+        unique_id: dwell_motion_kitchen
+        icon: mdi:motion-sensor
+        state: "{{ is_state('input_boolean.dwell_lighting_kitchen_enabled', 'on') }}"
+        turn_on:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.dwell_lighting_kitchen_enabled
+        turn_off:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.dwell_lighting_kitchen_enabled
+
+      - name: Dining Motion Automation
+        unique_id: dwell_motion_dining
+        icon: mdi:motion-sensor
+        state: "{{ is_state('input_boolean.dwell_lighting_dining_enabled', 'on') }}"
+        turn_on:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.dwell_lighting_dining_enabled
+        turn_off:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.dwell_lighting_dining_enabled
+
+      - name: Lounge Motion Automation
+        unique_id: dwell_motion_lounge
+        icon: mdi:motion-sensor
+        state: "{{ is_state('input_boolean.dwell_lighting_lounge_enabled', 'on') }}"
+        turn_on:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.dwell_lighting_lounge_enabled
+        turn_off:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.dwell_lighting_lounge_enabled
+
+      - name: Office Motion Automation
+        unique_id: dwell_motion_office
+        icon: mdi:motion-sensor
+        state: "{{ is_state('input_boolean.dwell_lighting_office_enabled', 'on') }}"
+        turn_on:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.dwell_lighting_office_enabled
+        turn_off:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.dwell_lighting_office_enabled
+
+      - name: Main Bedroom Motion Automation
+        unique_id: dwell_motion_main_bedroom
+        icon: mdi:motion-sensor
+        state: "{{ is_state('input_boolean.dwell_lighting_main_bedroom_enabled', 'on') }}"
+        turn_on:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.dwell_lighting_main_bedroom_enabled
+        turn_off:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.dwell_lighting_main_bedroom_enabled
+
+      - name: Ensuite Motion Automation
+        unique_id: dwell_motion_ensuite
+        icon: mdi:motion-sensor
+        state: "{{ is_state('input_boolean.dwell_lighting_ensuite_enabled', 'on') }}"
+        turn_on:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.dwell_lighting_ensuite_enabled
+        turn_off:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.dwell_lighting_ensuite_enabled
+
+# Consolidated group for dashboard/status use.
+group:
+  dwell_motion_automation_controls:
+    name: Motion Automation Controls
+    icon: mdi:motion-sensor
+    entities:
+      - switch.kitchen_motion_automation
+      - switch.dining_motion_automation
+      - switch.lounge_motion_automation
+      - switch.office_motion_automation
+      - switch.main_bedroom_motion_automation
+      - switch.ensuite_motion_automation
