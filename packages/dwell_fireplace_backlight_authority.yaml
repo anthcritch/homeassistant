@@ -1,0 +1,118 @@
+# Dwell Home Assistant
+# Fireplace backlight authority
+#
+# Purpose
+#   The fireplace backlight is a visual indicator of ACTIVE MyAir heating only.
+#   It must not turn on merely because heat is requested or a target temperature
+#   is above room temperature.
+#
+# Authority rules
+#   1. Away or Vacation: always OFF.
+#   2. Overnight 22:00-04:45: always OFF.
+#   3. At all other times: ON only when the MyAir master reports
+#      hvac_action == heating.
+#   4. Any unexpected change to the fireplace light is reconciled immediately.
+#
+# Important
+#   Disable/remove legacy fireplace writers such as:
+#     - Core - Fireplace Ambient Backlight
+#     - old seasonal/morning fireplace automations
+#   This package should be the sole automatic writer for light.emotiv_backlight.
+
+input_boolean:
+  dwell_fireplace_heating_indicator_enabled:
+    name: Dwell - Fireplace Heating Indicator Enabled
+    icon: mdi:fire
+    initial: true
+
+template:
+  - binary_sensor:
+      - name: Dwell Fireplace Heating Indicator Required
+        unique_id: dwell_fireplace_heating_indicator_required
+        icon: mdi:fire
+        state: >-
+          {% set enabled = is_state('input_boolean.dwell_fireplace_heating_indicator_enabled', 'on') %}
+          {% set mode = states('input_select.house_mode') | lower %}
+          {% set overnight = now().time() >= today_at('22:00').time()
+                              or now().time() < today_at('04:45').time() %}
+          {% set actively_heating = state_attr('climate.appliances_air_conditioner', 'hvac_action') == 'heating' %}
+          {{ enabled
+             and mode not in ['away', 'vacation']
+             and not overnight
+             and actively_heating }}
+        attributes:
+          house_mode: "{{ states('input_select.house_mode') }}"
+          myair_hvac_mode: "{{ states('climate.appliances_air_conditioner') }}"
+          myair_hvac_action: "{{ state_attr('climate.appliances_air_conditioner', 'hvac_action') }}"
+          overnight_suppression: >-
+            {{ now().time() >= today_at('22:00').time()
+               or now().time() < today_at('04:45').time() }}
+          authority: "Active heating only; suppressed Away/Vacation and 22:00-04:45"
+
+automation:
+  - id: dwell_fireplace_backlight_heating_indicator_authority
+    alias: Dwell - Fireplace Backlight Follows Active Air Conditioning Heat
+    description: >-
+      Sole automatic authority for the fireplace backlight. Keeps the light off
+      overnight and in Away/Vacation, and otherwise turns it on only while the
+      MyAir master reports hvac_action heating.
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: climate.appliances_air_conditioner
+      - platform: state
+        entity_id: input_select.house_mode
+      - platform: state
+        entity_id: input_boolean.dwell_fireplace_heating_indicator_enabled
+      - platform: state
+        entity_id: light.emotiv_backlight
+      - platform: time
+        at: "04:45:00"
+      - platform: time
+        at: "22:00:00"
+      - platform: homeassistant
+        event: start
+    action:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.dwell_fireplace_heating_indicator_required
+                state: "on"
+              - condition: state
+                entity_id: light.emotiv_backlight
+                state: "off"
+            sequence:
+              - service: light.turn_on
+                target:
+                  entity_id: light.emotiv_backlight
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.dwell_fireplace_heating_indicator_required
+                state: "off"
+              - condition: state
+                entity_id: light.emotiv_backlight
+                state: "on"
+            sequence:
+              - service: light.turn_off
+                target:
+                  entity_id: light.emotiv_backlight
+
+script:
+  dwell_fireplace_backlight_reconcile_now:
+    alias: Dwell - Reconcile Fireplace Backlight Now
+    description: Re-evaluate and immediately enforce the fireplace heating-indicator rule.
+    mode: restart
+    sequence:
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: binary_sensor.dwell_fireplace_heating_indicator_required
+                state: "on"
+            sequence:
+              - service: light.turn_on
+                target:
+                  entity_id: light.emotiv_backlight
+        default:
+          - service: light.turn_off
+            target:
+              entity_id: light.emotiv_backlight
